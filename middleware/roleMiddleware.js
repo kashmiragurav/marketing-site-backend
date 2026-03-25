@@ -1,13 +1,13 @@
-// Middleware to restrict access by role
-// Usage: requireRole("admin") or requireRole("admin", "vendor")
-const requireRole = (...roles) => (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({ message: "Not authenticated." });
-  }
-  if (!roles.includes(req.user.role)) {
-    return res.status(403).json({ message: `Access denied. Required role: ${roles.join(" or ")}` });
-  }
-  next();
-};
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated." });
+    }
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ message: "Access denied. Insufficient role." });
+    }
+    next();
+  };
+}
 
-module.exports = { requireRole };
+module.exports = requireRole;

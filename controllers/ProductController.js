@@ -171,6 +171,51 @@ exports.deleteProduct = async (req, res) => {
 };
 
 
+// ─── ADD REVIEW (rating + comment) ─────────────────────────────
+exports.addReview = async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: "Rating must be between 1 and 5" });
+    }
+
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    // Prevent duplicate review from same user
+    const already = product.reviews.find(
+      (r) => r.userId.toString() === req.user.userId
+    );
+    if (already) {
+      return res.status(400).json({ message: "You have already reviewed this product" });
+    }
+
+    product.reviews.push({
+      userId:   req.user.userId,
+      userName: req.user.email,
+      rating:   Number(rating),
+      comment:  comment || "",
+    });
+
+    // Recalculate average from all reviews
+    const total = product.reviews.reduce((sum, r) => sum + r.rating, 0);
+    product.ratingsAverage = total / product.reviews.length;
+    product.ratingsCount   = product.reviews.length;
+
+    await product.save();
+
+    res.status(201).json({
+      message:        "Review submitted",
+      ratingsAverage: product.ratingsAverage,
+      ratingsCount:   product.ratingsCount,
+      reviews:        product.reviews,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // ─── RATE PRODUCT ────────────────────────────────────────────────
 // Accepts only a rating (1-5). No comment, no review stored.
 // Recalculates ratingsAverage and increments ratingsCount.
