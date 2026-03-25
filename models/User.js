@@ -17,7 +17,10 @@ const userSchema = new mongoose.Schema(
       },
     ],
 
-    // Password reset fields (unchanged)
+    // Role: admin | vendor | customer
+    role: { type: String, enum: ["admin", "vendor", "customer"], default: "customer" },
+
+    // Password reset fields
     resetToken: { type: String },
     resetTokenExpires: { type: Date },
   },

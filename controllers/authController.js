@@ -29,7 +29,7 @@ async function register(req, res, next) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const verificationToken = crypto.randomBytes(32).toString("hex");
-    const verificationExpiry = new Date(Date.now() + 1 * 60 * 1000); // 15 minutes
+    const verificationExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     const user = await User.create({
       name,
@@ -204,7 +204,7 @@ async function login(req, res, next) {
     if (!isMatch) return res.status(401).json({ message: "Incorrect password." });
 
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { userId: user._id, email: user.email, role: user.role || "customer" },
       process.env.JWT_SECRET,
       { expiresIn: rememberMe ? "7d" : "1d" }
     );
@@ -230,7 +230,7 @@ function me(req, res) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    res.json({ email: decoded.email });
+    res.json({ email: decoded.email, role: decoded.role, userId: decoded.userId });
   } catch (err) {
     if (err.name === "TokenExpiredError") res.clearCookie("token");
     res.status(401).json({ message: "Invalid or expired token." });
