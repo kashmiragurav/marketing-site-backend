@@ -29,7 +29,7 @@ async function register(req, res, next) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const verificationToken = crypto.randomBytes(32).toString("hex");
-    const verificationExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    const verificationExpiry = new Date(Date.now() + 1 * 60 * 1000); // 15 minutes
 
     const user = await User.create({
       name,
@@ -204,7 +204,7 @@ async function login(req, res, next) {
     if (!isMatch) return res.status(401).json({ message: "Incorrect password." });
 
     const token = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role || "customer" },
+      { userId: user._id, id: user._id, _id: user._id, email: user.email, name: user.name, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: rememberMe ? "7d" : "1d" }
     );
@@ -217,7 +217,7 @@ async function login(req, res, next) {
       maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
     });
 
-    res.json({ message: "Login successful.", email: user.email });
+    res.json({ message: "Login successful.", email: user.email, name: user.name, role: user.role, userId: user._id, _id: user._id });
   } catch (err) {
     next(err);
   }
@@ -230,7 +230,7 @@ function me(req, res) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    res.json({ email: decoded.email, role: decoded.role, userId: decoded.userId });
+    res.json({ email: decoded.email, name: decoded.name, role: decoded.role, userId: decoded.userId, id: decoded.id || decoded.userId, _id: decoded._id || decoded.userId });
   } catch (err) {
     if (err.name === "TokenExpiredError") res.clearCookie("token");
     res.status(401).json({ message: "Invalid or expired token." });

@@ -6,17 +6,22 @@ const authMiddleware    = require("../middleware/authMiddleware");
 const requireRole       = require("../middleware/roleMiddleware");
 
 // ── Public ────────────────────────────────────────────────────────
-router.get("/",    productController.getProducts);
-router.get("/:id", productController.getProductById);
+router.get("/",           productController.getProducts);
+router.get("/search",     productController.globalSearch);
+router.get("/:id",        productController.getProductById);
 
-// ── Admin only (auth + role check) ───────────────────────────────
-router.post("/",     authMiddleware, requireRole("admin"), productController.createProduct);
-router.post("/bulk", authMiddleware, requireRole("admin"), productController.bulkCreateProducts);
-router.put("/:id",   authMiddleware, requireRole("admin"), productController.updateProduct);
-router.delete("/:id",authMiddleware, requireRole("admin"), productController.deleteProduct);
+// ── Admin + Vendor (create, update, delete) ───────────────────────
+router.post("/",      authMiddleware, requireRole("admin", "vendor"), productController.createProduct);
+router.post("/bulk",  authMiddleware, requireRole("admin", "vendor"), productController.bulkCreateProducts);
+router.put("/:id",    authMiddleware, requireRole("admin", "vendor"), productController.updateProduct);
+router.delete("/:id", authMiddleware, requireRole("admin", "vendor"), productController.deleteProduct);
 
-// ── Authenticated users ───────────────────────────────────────────
-router.post("/:id/rate",   authMiddleware, productController.rateProduct);
-router.post("/:id/review", authMiddleware, productController.addReview);
+// ── Admin only ────────────────────────────────────────────────────
+router.get("/admin/deleted",  authMiddleware, requireRole("admin"), productController.getDeletedProducts);
+router.patch("/:id/restore",  authMiddleware, requireRole("admin"), productController.restoreProduct);
+
+// ── Any authenticated user ────────────────────────────────────────
+router.post("/:id/rate",    authMiddleware, productController.rateProduct);
+router.post("/:id/reviews", authMiddleware, productController.addReview);
 
 module.exports = router;

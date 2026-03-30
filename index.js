@@ -12,7 +12,10 @@ const authMiddleware = require("./middleware/authMiddleware");
 
 // Routes
 const ProductRoutes = require("./routes/ProductRoutes");
-const authRoutes = require("./routes/authRoutes"); // single import
+const authRoutes = require("./routes/authRoutes");
+const cartRoutes = require("./routes/cartRoutes");
+const reviewRoutes = require("./routes/ReviewRoutes");
+const dashboardRoutes = require("./routes/DashboardRoutes");
 
 const app = express();
 
@@ -31,6 +34,9 @@ app.use(
 // ─── ROUTES ─────────────────────────
 app.use("/api/products", ProductRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/cart", cartRoutes);
+app.use("/api/reviews", reviewRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Example protected route
 app.get("/api/protected", authMiddleware, (req, res) => {

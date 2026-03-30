@@ -1,17 +1,16 @@
-const express = require("express");
-const router = express.Router();
-
+const express        = require("express");
+const router         = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
-const { canModifyCart } = require("../middleware/roleMiddleware");
 const cartController = require("../controllers/cartController");
 
+// All cart routes require login
 router.use(authMiddleware);
 
-router.post("/", cartController.addToCart);
-router.get("/", cartController.getCart);
-router.put("/:productId", canModifyCart, cartController.updateCartItem);
-router.delete("/:productId", canModifyCart, cartController.deleteCartItem);
-router.delete("/", canModifyCart, cartController.clearCart);
-
+router.get("/",             cartController.getCart);
+router.post("/",            cartController.addToCart);
+router.post("/revalidate",  cartController.revalidateCart);
+router.put("/:productId",   cartController.updateCartItem);
+router.delete("/:productId",cartController.deleteCartItem);
+router.delete("/",          cartController.clearCart);
 
 module.exports = router;

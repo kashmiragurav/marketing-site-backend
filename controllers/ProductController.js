@@ -1,4 +1,5 @@
 const Product = require("../models/Product");
+const Review = require("../models/Review");
 
 
 // ─── GET ALL PRODUCTS ─────────────────────────────────────────────
@@ -10,13 +11,14 @@ exports.getProducts = async (req, res) => {
       minPrice,
       maxPrice,
       inStock,
+      minRating,
       sortBy = "createdAt",
       order = "desc",
       page = 1,
       limit = 10,
     } = req.query;
 
-    const filter = {};
+    const filter = { isActive: { $ne: false } };
 
     if (search) {
       filter.title = { $regex: search, $options: "i" };
@@ -34,6 +36,10 @@ exports.getProducts = async (req, res) => {
 
     if (inStock === "true") {
       filter.stock = { $gt: 0 };
+    }
+
+    if (minRating) {
+      filter.ratingsAverage = { $gte: Number(minRating) };
     }
 
     const sortOrder = order === "asc" ? 1 : -1;
@@ -64,12 +70,21 @@ exports.getProducts = async (req, res) => {
 exports.getProductById = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
-
+    
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    res.json(product);
+    // Get reviews for this product
+    const reviews = await Review.find({ 
+      productId: req.params.id, 
+      isActive: true 
+    }).populate('userId', 'name email');
+
+    res.json({
+      ...product.toObject(),
+      reviews
+    });
 
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -80,7 +95,7 @@ exports.getProductById = async (req, res) => {
 // ─── CREATE SINGLE PRODUCT ───────────────────────────────────────
 exports.createProduct = async (req, res) => {
   try {
-    const { title, description, price, category, image, stock } = req.body
+    const { title, description, price, category, image, stock, brand, sku, tags } = req.body
 
     if (!title || price === undefined) {
       return res.status(400).json({ message: 'Title and price are required' })
@@ -90,9 +105,14 @@ exports.createProduct = async (req, res) => {
       title,
       description: description || '',
       price:       Number(price),
-      category:    category || '',
-      image:       image    || `https://picsum.photos/seed/${Date.now()}/400/400`,
+      category:    category   || '',
+      image:       image      || `https://picsum.photos/seed/${Date.now()}/400/400`,
       stock:       Number(stock) || 0,
+      brand:       brand || '',
+      sku:         sku   || '',
+      tags:        Array.isArray(tags) ? tags : [],
+      isActive:    true,
+      createdBy:   req.user.userId,
     })
 
     res.status(201).json({ message: 'Product created', product })
@@ -133,7 +153,14 @@ exports.updateProduct = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    const fields = ["title", "description", "price", "category", "image", "stock"];
+    // Ownership check: only owner or admin can update
+    const isOwner = String(product.createdBy) === String(req.user.userId)
+    const isAdmin = req.user.role === 'admin'
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: "Not authorized to update this product" })
+    }
+
+    const fields = ['title', 'description', 'price', 'category', 'image', 'stock', 'brand', 'sku', 'tags', 'isActive'];
 
     fields.forEach((field) => {
       if (req.body[field] !== undefined) {
@@ -154,19 +181,24 @@ exports.updateProduct = async (req, res) => {
 };
 
 
-// ─── DELETE PRODUCT (HARD DELETE) ─────────────────────────────────
+// ─── SOFT DELETE (sets isActive: false) ───────────────────────────
 exports.deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const product = await Product.findById(req.params.id)
+    if (!product) return res.status(404).json({ message: 'Product not found' })
 
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+    // Ownership check
+    const isOwner = String(product.createdBy) === String(req.user.userId)
+    const isAdmin = req.user.role === 'admin'
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: 'Not authorized to delete this product' })
     }
 
-    res.json({ message: "Product deleted successfully" });
-
+    product.isActive = false
+    await product.save()
+    res.json({ message: 'Product deactivated' })
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: err.message })
   }
 };
 
@@ -184,37 +216,67 @@ exports.addReview = async (req, res) => {
     if (!product) return res.status(404).json({ message: "Product not found" });
 
     // Prevent duplicate review from same user
-    const already = product.reviews.find(
-      (r) => r.userId.toString() === req.user.userId
-    );
-    if (already) {
+    const existingReview = await Review.findOne({
+      productId: req.params.id,
+      userId: req.user.userId,
+      isActive: true
+    });
+    
+    if (existingReview) {
       return res.status(400).json({ message: "You have already reviewed this product" });
     }
 
-    product.reviews.push({
-      userId:   req.user.userId,
+    // Create new review
+    const review = new Review({
+      productId: req.params.id,
+      userId: req.user.userId,
       userName: req.user.email,
-      rating:   Number(rating),
-      comment:  comment || "",
+      rating: Number(rating),
+      comment: comment || "",
     });
 
-    // Recalculate average from all reviews
-    const total = product.reviews.reduce((sum, r) => sum + r.rating, 0);
-    product.ratingsAverage = total / product.reviews.length;
-    product.ratingsCount   = product.reviews.length;
+    await review.save();
 
+    // Recalculate product ratings
+    const reviews = await Review.find({ productId: req.params.id, isActive: true });
+    const totalRating = reviews.reduce((sum, r) => sum + r.rating, 0);
+    product.ratingsAverage = totalRating / reviews.length;
+    product.ratingsCount = reviews.length;
     await product.save();
 
     res.status(201).json({
-      message:        "Review submitted",
+      message: "Review submitted",
       ratingsAverage: product.ratingsAverage,
-      ratingsCount:   product.ratingsCount,
-      reviews:        product.reviews,
+      ratingsCount: product.ratingsCount,
+      review: review,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
+
+// ─── GET INACTIVE PRODUCTS (admin only) ──────────────────────────
+exports.getDeletedProducts = async (req, res) => {
+  try {
+    const products = await Product.find({ isActive: false }).lean()
+    res.json({ total: products.length, products })
+  } catch (err) {
+    res.status(500).json({ message: err.message })
+  }
+}
+
+// ─── RESTORE PRODUCT (admin only) ────────────────────────────────
+exports.restoreProduct = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id)
+    if (!product) return res.status(404).json({ message: 'Product not found' })
+    product.isActive = true
+    await product.save()
+    res.json({ message: 'Product restored', product })
+  } catch (err) {
+    res.status(500).json({ message: err.message })
+  }
+}
 
 // ─── RATE PRODUCT ────────────────────────────────────────────────
 // Accepts only a rating (1-5). No comment, no review stored.
@@ -248,3 +310,85 @@ exports.rateProduct = async (req, res) => {
     res.status(500).json({ message: err.message })
   }
 }
+
+// ─── GLOBAL SEARCH ───────────────────────────────────────────────────
+// Search across products, categories, brands, and tags
+exports.globalSearch = async (req, res) => {
+  try {
+    const { 
+      q, 
+      type = "all", // products, categories, brands, all
+      page = 1, 
+      limit = 10 
+    } = req.query;
+
+    if (!q || q.trim().length === 0) {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+
+    const searchRegex = { $regex: q.trim(), $options: "i" };
+    const skip = (Number(page) - 1) * Number(limit);
+
+    let results = {};
+
+    // Always search in products (for logged-in and non-logged-in users)
+    if (type === "all" || type === "products") {
+      const productFilter = {
+        isActive: { $ne: false },
+        $or: [
+          { title: searchRegex },
+          { description: searchRegex },
+          { tags: { $in: [searchRegex] } },
+          { brand: searchRegex },
+          { category: searchRegex },
+          { sku: searchRegex }
+        ]
+      };
+
+      const products = await Product.find(productFilter)
+        .select("title price category image brand ratingsAverage ratingsCount")
+        .sort({ ratingsAverage: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit));
+
+      const total = await Product.countDocuments(productFilter);
+
+      results.products = {
+        items: products,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          pages: Math.ceil(total / Number(limit))
+        }
+      };
+    }
+
+    // Search categories (distinct values)
+    if (type === "all" || type === "categories") {
+      const categories = await Product.distinct("category", {
+        isActive: { $ne: false },
+        category: searchRegex
+      });
+      results.categories = categories;
+    }
+
+    // Search brands (distinct values)
+    if (type === "all" || type === "brands") {
+      const brands = await Product.distinct("brand", {
+        isActive: { $ne: false },
+        brand: searchRegex
+      });
+      results.brands = brands;
+    }
+
+    res.json({
+      query: q.trim(),
+      type,
+      results
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
