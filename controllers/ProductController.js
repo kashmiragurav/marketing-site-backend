@@ -11,32 +11,61 @@ exports.getProducts = async (req, res) => {
       cursor, limit = 15,
     } = req.query
 
-    const filter = { isActive: { $ne: false } }
-    if (search)   filter.title    = { $regex: search,   $options: 'i' }
-    if (category) filter.category = { $regex: category, $options: 'i' }
-    if (minPrice || maxPrice) {
-      filter.price = {}
-      if (minPrice) filter.price.$gte = Number(minPrice)
-      if (maxPrice) filter.price.$lte = Number(maxPrice)
-    }
-    if (inStock === 'true') filter.stock          = { $gt: 0 }
-    if (minRating)          filter.ratingsAverage = { $gte: Number(minRating) }
-
-    // Cursor: skip docs before/after the last seen _id
-    if (cursor) {
-      filter._id = order === 'asc' ? { $gt: cursor } : { $lt: cursor }
-    }
-
-    const lim       = Math.min(Number(limit), 50)
     const sortOrder = order === 'asc' ? 1 : -1
+    const lim       = Math.min(Number(limit), 50)
 
-    // Run count and find in parallel — no sequential penalty
+    // Base filter without cursor — used for total count
+    const baseFilter = { isActive: true }
+    if (search) {
+      baseFilter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { brand: { $regex: search, $options: 'i' } },
+      ]
+    }
+    if (category)           baseFilter.category      = category
+    if (minPrice || maxPrice) {
+      baseFilter.price = {}
+      if (minPrice) baseFilter.price.$gte = Number(minPrice)
+      if (maxPrice) baseFilter.price.$lte = Number(maxPrice)
+    }
+    if (inStock === 'true') baseFilter.stock          = { $gt: 0 }
+    if (minRating)          baseFilter.ratingsAverage = { $gte: Number(minRating) }
+
+    // ── Cursor filter (extends baseFilter) ─────────────────────────────────────
+    const filter = { ...baseFilter }
+    const idOp   = sortOrder === -1 ? '$lt' : '$gt'
+
+    if (cursor) {
+      if (sortBy === 'createdAt' || sortBy === '_id') {
+        filter._id = { [idOp]: cursor }
+      } else {
+        const pivot = await Product.findById(cursor).select(sortBy).lean()
+        if (pivot) {
+          const val        = pivot[sortBy]
+          const op         = sortOrder === -1 ? '$lt' : '$gt'
+          const cursorCond = {
+            $or: [
+              { [sortBy]: { [op]: val } },
+              { [sortBy]: val, _id: { [idOp]: cursor } },
+            ],
+          }
+          if (filter.$or) {
+            filter.$and = [{ $or: filter.$or }, cursorCond]
+            delete filter.$or
+          } else {
+            Object.assign(filter, cursorCond)
+          }
+        }
+      }
+    }
+
     const [total, rows] = await Promise.all([
-      Product.countDocuments(filter),
+      Product.countDocuments(baseFilter),
       Product.find(filter)
         .sort({ [sortBy]: sortOrder, _id: sortOrder })
         .limit(lim + 1)
-        .select('title price category image stock brand ratingsAverage ratingsCount createdBy'),
+        .select('title price category image stock brand ratingsAverage ratingsCount createdBy')
+        .lean(),
     ])
 
     const hasMore    = rows.length > lim
