@@ -203,8 +203,12 @@ async function login(req, res, next) {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: "Incorrect password." });
 
+    // Normalise legacy roles to new enum values
+    const roleMap = { customer: 'user', vendor: 'admin' }
+    const role = roleMap[user.role] || user.role || 'user'
+
     const token = jwt.sign(
-      { userId: user._id, id: user._id, _id: user._id, email: user.email, name: user.name, role: user.role },
+      { userId: user._id, id: user._id, _id: user._id, email: user.email, name: user.name, role },
       process.env.JWT_SECRET,
       { expiresIn: rememberMe ? "7d" : "1d" }
     );
@@ -217,7 +221,7 @@ async function login(req, res, next) {
       maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
     });
 
-    res.json({ message: "Login successful.", email: user.email, name: user.name, role: user.role, userId: user._id, _id: user._id });
+    res.json({ message: "Login successful.", email: user.email, name: user.name, role, userId: user._id, _id: user._id });
   } catch (err) {
     next(err);
   }
