@@ -1,81 +1,68 @@
-const Product = require("../models/Product");
-const User = require("../models/User");
+const Product = require('../models/Product')
 
-// ─── GET DASHBOARD STATISTICS ─────────────────────────────────────
+// GET /api/dashboard/stats
+// Returns flat shape the frontend reads directly:
+// { total, inStock, outOfStock, topRated, stockRate,
+//   topRatedProducts, recentProducts, lowStockProducts }
 exports.getDashboardStats = async (req, res) => {
   try {
-    // Get product statistics
-    const totalProducts = await Product.countDocuments();
-    const activeProducts = await Product.countDocuments({ isActive: true });
-    const inactiveProducts = totalProducts - activeProducts;
-    const lowStockProducts = await Product.countDocuments({ 
-      isActive: true, 
-      stock: { $gt: 0, $lt: 5 } 
-    });
-    const outOfStockProducts = await Product.countDocuments({ 
-      isActive: true, 
-      stock: 0 
-    });
+    const [
+      total,
+      inStockCount,
+      outOfStock,
+      topRatedCount,
+      topRatedProducts,
+      recentProducts,
+      lowStockProducts,
+    ] = await Promise.all([
 
-    // Calculate total inventory value
-    const products = await Product.find({ isActive: true }).select('price stock');
-    const totalInventoryValue = products.reduce((sum, product) => {
-      return sum + (product.price * product.stock);
-    }, 0);
+      // total active products
+      Product.countDocuments({ isActive: true }),
 
-    // Get user statistics
-    const totalUsers = await User.countDocuments();
-    const verifiedUsers = await User.countDocuments({ isVerified: true });
-    const adminUsers = await User.countDocuments({ role: 'admin' });
-    const vendorUsers = await User.countDocuments({ role: 'vendor' });
-    const customerUsers = await User.countDocuments({ role: 'customer' });
+      // in stock (stock > 0)
+      Product.countDocuments({ isActive: true, stock: { $gt: 0 } }),
 
-    // Get recent products (last 6)
-    const recentProducts = await Product.find({ isActive: true })
-      .sort({ createdAt: -1 })
-      .limit(6)
-      .select('title price category image stock ratingsAverage createdAt');
+      // out of stock
+      Product.countDocuments({ isActive: true, stock: 0 }),
 
-    // Get top rated products (top 4)
-    const topRatedProducts = await Product.find({ 
-      isActive: true, 
-      ratingsCount: { $gt: 0 } 
-    })
-      .sort({ ratingsAverage: -1, ratingsCount: -1 })
-      .limit(4)
-      .select('title price category image ratingsAverage ratingsCount');
+      // rated >= 4 stars
+      Product.countDocuments({ isActive: true, ratingsAverage: { $gte: 4 } }),
 
-    // Get products by category
-    const productsByCategory = await Product.aggregate([
-      { $match: { isActive: true } },
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 10 }
-    ]);
+      // top 5 by rating — no ratingsCount filter so seeded products show up
+      Product.find({ isActive: true })
+        .sort({ ratingsAverage: -1, _id: -1 })
+        .limit(5)
+        .select('title price category image stock ratingsAverage ratingsCount')
+        .lean(),
+
+      // 6 most recently added
+      Product.find({ isActive: true })
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .select('title price category image stock ratingsAverage createdAt')
+        .lean(),
+
+      // 5 lowest stock still in stock
+      Product.find({ isActive: true, stock: { $gt: 0 } })
+        .sort({ stock: 1 })
+        .limit(5)
+        .select('title price category image stock ratingsAverage ratingsCount')
+        .lean(),
+    ])
+
+    const stockRate = total > 0 ? Math.round((inStockCount / total) * 100) : 0
 
     res.json({
-      products: {
-        total: totalProducts,
-        active: activeProducts,
-        inactive: inactiveProducts,
-        lowStock: lowStockProducts,
-        outOfStock: outOfStockProducts,
-        totalValue: totalInventoryValue,
-        byCategory: productsByCategory
-      },
-      users: {
-        total: totalUsers,
-        verified: verifiedUsers,
-        unverified: totalUsers - verifiedUsers,
-        admin: adminUsers,
-        vendor: vendorUsers,
-        customer: customerUsers
-      },
+      total,
+      inStock:    inStockCount,
+      outOfStock,
+      topRated:   topRatedCount,
+      stockRate,
+      topRatedProducts,
       recentProducts,
-      topRatedProducts
-    });
-
+      lowStockProducts,
+    })
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: err.message })
   }
-};
+}

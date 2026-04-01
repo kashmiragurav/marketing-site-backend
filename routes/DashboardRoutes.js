@@ -1,15 +1,10 @@
-const express = require("express");
-const router = express.Router();
+const express = require('express')
+const router  = express.Router()
 
-const dashboardController = require("../controllers/DashboardController");
-const authMiddleware = require("../middleware/authMiddleware");
-const requireRole = require("../middleware/roleMiddleware");
+const dashboardController = require('../controllers/DashboardController')
+const authMiddleware      = require('../middleware/authMiddleware')
 
-// ─── Admin only routes ─────────────────────────────────────────────────
-router.get("/stats", 
-  authMiddleware, 
-  requireRole("admin"), 
-  dashboardController.getDashboardStats
-);
+// Any authenticated user can view dashboard stats — no role restriction
+router.get('/stats', authMiddleware, dashboardController.getDashboardStats)
 
-module.exports = router;
+module.exports = router

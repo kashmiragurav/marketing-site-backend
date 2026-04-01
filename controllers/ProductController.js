@@ -2,68 +2,49 @@ const Product = require("../models/Product");
 const Review = require("../models/Review");
 
 
-// ─── GET ALL PRODUCTS ─────────────────────────────────────────────
+// ─── GET ALL PRODUCTS (cursor-based) ────────────────────────────
 exports.getProducts = async (req, res) => {
   try {
     const {
-      search,
-      category,
-      minPrice,
-      maxPrice,
-      inStock,
-      minRating,
-      sortBy = "createdAt",
-      order = "desc",
-      page = 1,
-      limit = 10,
-    } = req.query;
+      search, category, minPrice, maxPrice, inStock, minRating,
+      sortBy = 'createdAt', order = 'desc',
+      cursor, limit = 15,
+    } = req.query
 
-    const filter = { isActive: { $ne: false } };
-
-    if (search) {
-      filter.title = { $regex: search, $options: "i" };
-    }
-
-    if (category) {
-      filter.category = { $regex: category, $options: "i" };
-    }
-
+    const filter = { isActive: { $ne: false } }
+    if (search)   filter.title    = { $regex: search,   $options: 'i' }
+    if (category) filter.category = { $regex: category, $options: 'i' }
     if (minPrice || maxPrice) {
-      filter.price = {};
-      if (minPrice) filter.price.$gte = Number(minPrice);
-      if (maxPrice) filter.price.$lte = Number(maxPrice);
+      filter.price = {}
+      if (minPrice) filter.price.$gte = Number(minPrice)
+      if (maxPrice) filter.price.$lte = Number(maxPrice)
+    }
+    if (inStock === 'true') filter.stock          = { $gt: 0 }
+    if (minRating)          filter.ratingsAverage = { $gte: Number(minRating) }
+
+    // Cursor: skip docs before/after the last seen _id
+    if (cursor) {
+      filter._id = order === 'asc' ? { $gt: cursor } : { $lt: cursor }
     }
 
-    if (inStock === "true") {
-      filter.stock = { $gt: 0 };
-    }
+    const lim       = Math.min(Number(limit), 50)
+    const sortOrder = order === 'asc' ? 1 : -1
 
-    if (minRating) {
-      filter.ratingsAverage = { $gte: Number(minRating) };
-    }
+    // Fetch lim+1 to detect hasMore without a countDocuments call
+    const rows = await Product.find(filter)
+      .sort({ [sortBy]: sortOrder, _id: sortOrder })
+      .limit(lim + 1)
+      .select('title price category image stock brand ratingsAverage ratingsCount createdBy')
 
-    const sortOrder = order === "asc" ? 1 : -1;
+    const hasMore    = rows.length > lim
+    const products   = hasMore ? rows.slice(0, lim) : rows
+    const nextCursor = hasMore ? String(products[products.length - 1]._id) : null
 
-    const skip = (Number(page) - 1) * Number(limit);
-
-    const total = await Product.countDocuments(filter);
-
-    const products = await Product.find(filter)
-      .sort({ [sortBy]: sortOrder })
-      .skip(skip)
-      .limit(Number(limit));
-
-    res.json({
-      total,
-      page: Number(page),
-      totalPages: Math.ceil(total / limit),
-      products,
-    });
-
+    res.json({ products, nextCursor, hasMore })
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: err.message })
   }
-};
+}
 
 
 // ─── GET SINGLE PRODUCT ───────────────────────────────────────────
@@ -155,7 +136,7 @@ exports.updateProduct = async (req, res) => {
 
     // Ownership check: only owner or admin can update
     const isOwner = String(product.createdBy) === String(req.user.userId)
-    const isAdmin = req.user.role === 'admin'
+    const isAdmin = ['admin', 'super_admin'].includes((req.user.role || '').toLowerCase())
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ message: "Not authorized to update this product" })
     }
@@ -189,7 +170,7 @@ exports.deleteProduct = async (req, res) => {
 
     // Ownership check
     const isOwner = String(product.createdBy) === String(req.user.userId)
-    const isAdmin = req.user.role === 'admin'
+    const isAdmin = ['admin', 'super_admin'].includes((req.user.role || '').toLowerCase())
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ message: 'Not authorized to delete this product' })
     }
