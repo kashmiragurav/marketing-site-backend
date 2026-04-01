@@ -9,18 +9,7 @@ const User = require("../models/User");
 // ─────────────────────────────────────────────
 // STATIC DATA
 // ─────────────────────────────────────────────
-const categories = [
-  "Electronics",
-  "Clothing",
-  "Footwear",
-  "Kitchen",
-  "Furniture",
-  "Fitness",
-  "Computers",
-  "Books",
-  "Beauty",
-  "Toys",
-];
+const { CATEGORY_ENUM: categories } = require('../constants');
 
 const brands = [
   "Apple",

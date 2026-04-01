@@ -28,9 +28,9 @@ exports.getDashboardStats = async (req, res) => {
       // rated >= 4 stars
       Product.countDocuments({ isActive: true, ratingsAverage: { $gte: 4 } }),
 
-      // top 5 by rating — no ratingsCount filter so seeded products show up
-      Product.find({ isActive: true })
-        .sort({ ratingsAverage: -1, _id: -1 })
+      // top 5 by rating — only products with actual ratings, empty if none
+      Product.find({ isActive: true, ratingsAverage: { $gt: 0 }, ratingsCount: { $gt: 0 } })
+        .sort({ ratingsAverage: -1, ratingsCount: -1 })
         .limit(5)
         .select('title price category image stock ratingsAverage ratingsCount')
         .lean(),

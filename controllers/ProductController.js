@@ -30,17 +30,20 @@ exports.getProducts = async (req, res) => {
     const lim       = Math.min(Number(limit), 50)
     const sortOrder = order === 'asc' ? 1 : -1
 
-    // Fetch lim+1 to detect hasMore without a countDocuments call
-    const rows = await Product.find(filter)
-      .sort({ [sortBy]: sortOrder, _id: sortOrder })
-      .limit(lim + 1)
-      .select('title price category image stock brand ratingsAverage ratingsCount createdBy')
+    // Run count and find in parallel — no sequential penalty
+    const [total, rows] = await Promise.all([
+      Product.countDocuments(filter),
+      Product.find(filter)
+        .sort({ [sortBy]: sortOrder, _id: sortOrder })
+        .limit(lim + 1)
+        .select('title price category image stock brand ratingsAverage ratingsCount createdBy'),
+    ])
 
     const hasMore    = rows.length > lim
     const products   = hasMore ? rows.slice(0, lim) : rows
     const nextCursor = hasMore ? String(products[products.length - 1]._id) : null
 
-    res.json({ products, nextCursor, hasMore })
+    res.json({ products, nextCursor, hasMore, total })
   } catch (err) {
     res.status(500).json({ message: err.message })
   }
