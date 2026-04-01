@@ -135,9 +135,10 @@ exports.updateProduct = async (req, res) => {
     }
 
     // Ownership check: only owner or admin can update
-    const isOwner = String(product.createdBy) === String(req.user.userId)
-    const isAdmin = ['admin', 'super_admin'].includes((req.user.role || '').toLowerCase())
-    if (!isOwner && !isAdmin) {
+    const isOwner      = String(product.createdBy) === String(req.user.userId)
+    const isSuperAdmin = (req.user.role || '').toLowerCase() === 'super_admin'
+    // admin can only update their own products; super_admin can update any
+    if (!isOwner && !isSuperAdmin) {
       return res.status(403).json({ message: "Not authorized to update this product" })
     }
 
@@ -169,9 +170,10 @@ exports.deleteProduct = async (req, res) => {
     if (!product) return res.status(404).json({ message: 'Product not found' })
 
     // Ownership check
-    const isOwner = String(product.createdBy) === String(req.user.userId)
-    const isAdmin = ['admin', 'super_admin'].includes((req.user.role || '').toLowerCase())
-    if (!isOwner && !isAdmin) {
+    const isOwner      = String(product.createdBy) === String(req.user.userId)
+    const isSuperAdmin = (req.user.role || '').toLowerCase() === 'super_admin'
+    // admin can only delete their own products; super_admin can delete any
+    if (!isOwner && !isSuperAdmin) {
       return res.status(403).json({ message: 'Not authorized to delete this product' })
     }
 

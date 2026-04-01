@@ -11,11 +11,12 @@ const errorHandler = require("./middleware/errorHandler");
 const authMiddleware = require("./middleware/authMiddleware");
 
 // Routes
-const ProductRoutes = require("./routes/ProductRoutes");
-const authRoutes = require("./routes/authRoutes");
-const cartRoutes = require("./routes/cartRoutes");
-const reviewRoutes = require("./routes/ReviewRoutes");
+const ProductRoutes   = require("./routes/ProductRoutes");
+const authRoutes      = require("./routes/authRoutes");
+const cartRoutes      = require("./routes/cartRoutes");
+const reviewRoutes    = require("./routes/ReviewRoutes");
 const dashboardRoutes = require("./routes/DashboardRoutes");
+const reportsRoutes   = require("./routes/ReportsRoutes");
 
 const app = express();
 
@@ -32,11 +33,12 @@ app.use(
 );
 
 // ─── ROUTES ─────────────────────────
-app.use("/api/products", ProductRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/cart", cartRoutes);
-app.use("/api/reviews", reviewRoutes);
+app.use("/api/products",  ProductRoutes);
+app.use("/api/auth",      authRoutes);
+app.use("/api/cart",      cartRoutes);
+app.use("/api/reviews",   reviewRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/reports",   reportsRoutes);
 
 // Example protected route
 app.get("/api/protected", authMiddleware, (req, res) => {

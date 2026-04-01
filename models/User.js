@@ -2,26 +2,27 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    name:     { type: String, required: true },
+    email:    { type: String, required: true, unique: true },
     password: { type: String, required: true },
     isVerified: { type: Boolean, default: false },
 
-    // Array to store multiple verification tokens for resends
     verificationTokens: [
       {
-        token: { type: String, required: true },
-        expires: { type: Date, required: true },
-        used: { type: Boolean, default: false } 
-
+        token:   { type: String, required: true },
+        expires: { type: Date,   required: true },
+        used:    { type: Boolean, default: false },
       },
     ],
 
-    // Role: admin | vendor | customer
-    role: { type: String, enum: ["admin", "vendor", "customer"], default: "customer" },
+    // RBAC roles — super_admin > admin > user
+    role: {
+      type:    String,
+      enum:    ["super_admin", "admin", "user"],
+      default: "user",
+    },
 
-    // Password reset fields
-    resetToken: { type: String },
+    resetToken:        { type: String },
     resetTokenExpires: { type: Date },
   },
   { timestamps: true }
