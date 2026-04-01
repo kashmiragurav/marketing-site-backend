@@ -1,23 +1,32 @@
-const jwt = require("jsonwebtoken");
+'use strict'
 
-function authMiddleware(req, res, next) {
-  const token = req.cookies?.token;
+const jwt  = require('jsonwebtoken')
+const Boom = require('@hapi/boom')
+
+/**
+ * authenticate(request)
+ *
+ * Replaces the Express authMiddleware.
+ * Instead of calling next() it returns the decoded user or throws a Boom error.
+ * Call this at the top of any handler that requires authentication.
+ *
+ * Usage in a Hapi handler:
+ *   const user = authenticate(request)   // throws 401 Boom if invalid
+ */
+function authenticate(request) {
+  // Hapi reads cookies via request.state — replaces req.cookies
+  const token = request.state?.token
 
   if (!token) {
-    return res.status(401).json({
-      message: "Access denied. Please login.",
-    });
+    throw Boom.unauthorized('Access denied. Please login.')
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({
-      message: "Invalid or expired token.",
-    });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    return decoded   // caller assigns this to request.user equivalent
+  } catch {
+    throw Boom.unauthorized('Invalid or expired token.')
   }
 }
 
-module.exports = authMiddleware;
+module.exports = { authenticate }

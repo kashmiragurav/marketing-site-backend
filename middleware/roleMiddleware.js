@@ -1,27 +1,31 @@
+'use strict'
+
+const Boom = require('@hapi/boom')
+
 /**
- * requireRole / authorizeRoles — role-based access middleware
+ * requireRole(...roles)(user)
  *
- * Usage:
- *   requireRole('admin', 'super_admin')
- *   authorizeRoles('admin', 'super_admin')   ← alias, same function
+ * Replaces the Express requireRole middleware.
+ * Instead of (req, res, next) it takes the already-decoded user object
+ * and throws a Boom.forbidden if the role is not allowed.
  *
- * Normalises role to lowercase so ADMIN === admin === Admin.
+ * Usage in a Hapi handler:
+ *   const user = authenticate(request)
+ *   requireRole('admin', 'super_admin')(user)
  */
 function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ message: "Not authenticated." });
+  return (user) => {
+    if (!user) {
+      throw Boom.unauthorized('Not authenticated.')
     }
-    const userRole = (req.user.role || "").toLowerCase();
-    const allowed  = roles.map(r => r.toLowerCase());
+    const userRole = (user.role || '').toLowerCase()
+    const allowed  = roles.map(r => r.toLowerCase())
     if (!allowed.includes(userRole)) {
-      return res.status(403).json({
-        message: `Access denied. Required: ${roles.join(" or ")}`,
-      });
+      throw Boom.forbidden(`Access denied. Required: ${roles.join(' or ')}`)
     }
-    next();
-  };
+    // No return value needed — if we reach here the role is valid
+  }
 }
 
-module.exports = requireRole;
-module.exports.authorizeRoles = requireRole; // named alias
+module.exports = requireRole
+module.exports.authorizeRoles = requireRole  // named alias preserved

@@ -1,14 +1,23 @@
-const express = require("express");
-const router = express.Router();
+'use strict'
 
-const reviewController = require("../controllers/ReviewController");
-const authMiddleware = require("../middleware/authMiddleware");
-const requireRole = require("../middleware/roleMiddleware");
+const reviewController = require('../controllers/ReviewController')
+const { authenticate } = require('../middleware/authMiddleware')
+const adapt            = require('../utils/adaptRequest')
 
-// ─── Public routes ───────────────────────────────────────────────────
-router.get("/product/:productId", reviewController.getProductReviews);
-
-// ─── Protected routes ─────────────────────────────────────────────────
-router.delete("/:id", authMiddleware, reviewController.deleteReview);
-
-module.exports = router;
+module.exports = [
+  {
+    method: 'GET', path: '/api/reviews/product/{productId}', options: { auth: false },
+    handler: (request, h) => {
+      const { req, res } = adapt(request, h)
+      return reviewController.getProductReviews(req, res)
+    },
+  },
+  {
+    method: 'DELETE', path: '/api/reviews/{id}', options: { auth: false },
+    handler: (request, h) => {
+      const { req, res } = adapt(request, h)
+      req.user = authenticate(request)
+      return reviewController.deleteReview(req, res)
+    },
+  },
+]

@@ -1,11 +1,16 @@
-const express = require("express");
-const router  = express.Router();
+'use strict'
 
-const dashboardController = require("../controllers/DashboardController");
-const authMiddleware      = require("../middleware/authMiddleware");
-const requireRole         = require("../middleware/roleMiddleware");
+const dashboardController = require('../controllers/DashboardController')
+const { authenticate }    = require('../middleware/authMiddleware')
+const adapt               = require('../utils/adaptRequest')
 
-// Admin + Super Admin only
-router.get("/stats", authMiddleware, requireRole("admin", "super_admin"), dashboardController.getDashboardStats);
-
-module.exports = router;
+module.exports = [
+  {
+    method: 'GET', path: '/api/dashboard/stats', options: { auth: false },
+    handler: (request, h) => {
+      const { req, res } = adapt(request, h)
+      req.user = authenticate(request)
+      return dashboardController.getDashboardStats(req, res)
+    },
+  },
+]

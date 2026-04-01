@@ -1,11 +1,19 @@
-const express = require('express')
-const router  = express.Router()
+'use strict'
 
 const reportsController = require('../controllers/ReportsController')
-const authMiddleware    = require('../middleware/authMiddleware')
+const { authenticate }  = require('../middleware/authMiddleware')
 const requireRole       = require('../middleware/roleMiddleware')
+const adapt             = require('../utils/adaptRequest')
 
-// Admin + Super Admin only
-router.get('/summary', authMiddleware, requireRole('admin', 'super_admin'), reportsController.getReportSummary)
-
-module.exports = router
+module.exports = [
+  {
+    method: 'GET', path: '/api/reports/summary', options: { auth: false },
+    handler: (request, h) => {
+      const user = authenticate(request)
+      requireRole('admin', 'super_admin')(user)
+      const { req, res } = adapt(request, h)
+      req.user = user
+      return reportsController.getReportSummary(req, res)
+    },
+  },
+]

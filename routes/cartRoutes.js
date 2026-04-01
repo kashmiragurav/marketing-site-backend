@@ -1,16 +1,56 @@
-const express        = require("express");
-const router         = express.Router();
-const authMiddleware = require("../middleware/authMiddleware");
-const cartController = require("../controllers/cartController");
+'use strict'
 
-// All cart routes require login
-router.use(authMiddleware);
+const cartController   = require('../controllers/cartController')
+const { authenticate } = require('../middleware/authMiddleware')
+const adapt            = require('../utils/adaptRequest')
 
-router.get("/",             cartController.getCart);
-router.post("/",            cartController.addToCart);
-router.post("/revalidate",  cartController.revalidateCart);
-router.put("/:productId",   cartController.updateCartItem);
-router.delete("/:productId",cartController.deleteCartItem);
-router.delete("/",          cartController.clearCart);
-
-module.exports = router;
+module.exports = [
+  {
+    method: 'GET', path: '/api/cart', options: { auth: false },
+    handler: (request, h) => {
+      const { req, res } = adapt(request, h)
+      req.user = authenticate(request)
+      return cartController.getCart(req, res)
+    },
+  },
+  {
+    method: 'POST', path: '/api/cart', options: { auth: false },
+    handler: (request, h) => {
+      const { req, res } = adapt(request, h)
+      req.user = authenticate(request)
+      return cartController.addToCart(req, res)
+    },
+  },
+  {
+    method: 'POST', path: '/api/cart/revalidate', options: { auth: false },
+    handler: (request, h) => {
+      const { req, res } = adapt(request, h)
+      req.user = authenticate(request)
+      return cartController.revalidateCart(req, res)
+    },
+  },
+  {
+    method: 'PUT', path: '/api/cart/{productId}', options: { auth: false },
+    handler: (request, h) => {
+      const { req, res } = adapt(request, h)
+      req.user = authenticate(request)
+      return cartController.updateCartItem(req, res)
+    },
+  },
+  {
+    method: 'DELETE', path: '/api/cart/{productId}', options: { auth: false },
+    handler: (request, h) => {
+      const { req, res } = adapt(request, h)
+      req.user = authenticate(request)
+      return cartController.deleteCartItem(req, res)
+    },
+  },
+  {
+    method: 'DELETE', path: '/api/cart', options: { auth: false },
+    handler: (request, h) => {
+      const { req, res } = adapt(request, h)
+      req.user = authenticate(request)
+      return cartController.clearCart(req, res)
+    },
+  },
+]
