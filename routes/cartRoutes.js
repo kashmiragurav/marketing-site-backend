@@ -8,49 +8,55 @@ module.exports = [
   {
     method: 'GET', path: '/api/cart', options: { auth: false },
     handler: (request, h) => {
-      const { req, res } = adapt(request, h)
+      const { req, res, next, responsePromise } = adapt(request, h)
       req.user = authenticate(request)
-      return cartController.getCart(req, res)
+      cartController.getCart(req, res, next)
+      return responsePromise
     },
   },
   {
     method: 'POST', path: '/api/cart', options: { auth: false },
     handler: (request, h) => {
-      const { req, res } = adapt(request, h)
+      const { req, res, next, responsePromise } = adapt(request, h)
       req.user = authenticate(request)
-      return cartController.addToCart(req, res)
+      cartController.addToCart(req, res, next)
+      return responsePromise
     },
   },
   {
     method: 'POST', path: '/api/cart/revalidate', options: { auth: false },
     handler: (request, h) => {
-      const { req, res } = adapt(request, h)
+      const { req, res, next, responsePromise } = adapt(request, h)
       req.user = authenticate(request)
-      return cartController.revalidateCart(req, res)
+      cartController.revalidateCart(req, res, next)
+      return responsePromise
     },
   },
   {
     method: 'PUT', path: '/api/cart/{productId}', options: { auth: false },
     handler: (request, h) => {
-      const { req, res } = adapt(request, h)
+      const { req, res, next, responsePromise } = adapt(request, h)
       req.user = authenticate(request)
-      return cartController.updateCartItem(req, res)
+      cartController.updateCartItem(req, res, next)
+      return responsePromise
     },
   },
   {
     method: 'DELETE', path: '/api/cart/{productId}', options: { auth: false },
     handler: (request, h) => {
-      const { req, res } = adapt(request, h)
+      const { req, res, next, responsePromise } = adapt(request, h)
       req.user = authenticate(request)
-      return cartController.deleteCartItem(req, res)
+      cartController.deleteCartItem(req, res, next)
+      return responsePromise
     },
   },
   {
     method: 'DELETE', path: '/api/cart', options: { auth: false },
     handler: (request, h) => {
-      const { req, res } = adapt(request, h)
+      const { req, res, next, responsePromise } = adapt(request, h)
       req.user = authenticate(request)
-      return cartController.clearCart(req, res)
+      cartController.clearCart(req, res, next)
+      return responsePromise
     },
   },
 ]

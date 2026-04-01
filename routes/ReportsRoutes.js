@@ -11,9 +11,10 @@ module.exports = [
     handler: (request, h) => {
       const user = authenticate(request)
       requireRole('admin', 'super_admin')(user)
-      const { req, res } = adapt(request, h)
+      const { req, res, next, responsePromise } = adapt(request, h)
       req.user = user
-      return reportsController.getReportSummary(req, res)
+      reportsController.getReportSummary(req, res, next)
+      return responsePromise
     },
   },
 ]

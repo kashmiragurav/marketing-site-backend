@@ -1,30 +1,42 @@
 'use strict'
 
+const Boom = require('@hapi/boom')
+
 /**
  * adaptRequest(request, h)
  *
- * Maps Hapi's request/h objects to Express-style req/res so that every
- * existing controller can be called without any changes.
+ * Maps Hapi request/h to Express-style req/res/next.
  *
- * Usage inside a Hapi handler:
- *   const { req, res } = adaptRequest(request, h)
- *   return someExpressController(req, res)
- *
- * The returned `res` object collects the status code, headers, and body
- * then returns a proper Hapi response when res.json() or res.send() is called.
+ * Key fixes:
+ *  1. next(err) — controllers call next(err) in catch blocks.
+ *     We reject the responsePromise with a Boom error so Hapi's
+ *     onPreResponse extension handles it correctly.
+ *  2. Double-resolve guard — some controllers call res.json() AND
+ *     next(err) in different code paths. Only the first call wins.
+ *  3. responsePromise — always returned by the Hapi handler so Hapi
+ *     never sees "handler did not return a value".
  */
 function adaptRequest(request, h) {
-  // ── req — Express-compatible request object ──────────────────────────────
+  let _settled = false   // guard: only resolve/reject once
+
+  let _resolve
+  let _reject
+  const responsePromise = new Promise((resolve, reject) => {
+    _resolve = resolve
+    _reject  = reject
+  })
+
+  // ── req ───────────────────────────────────────────────────────────────────
   const req = {
-    body:    request.payload  || {},
-    params:  request.params   || {},
-    query:   request.query    || {},
-    cookies: request.state    || {},
-    headers: request.headers  || {},
-    user:    request.user     || null,   // set by auth helpers before calling controller
+    body:    request.payload || {},
+    params:  request.params  || {},
+    query:   request.query   || {},
+    cookies: request.state   || {},
+    headers: request.headers || {},
+    user:    request.user    || null,
   }
 
-  // ── res — Express-compatible response builder ────────────────────────────
+  // ── res ───────────────────────────────────────────────────────────────────
   let _status  = 200
   let _headers = {}
 
@@ -38,8 +50,6 @@ function adaptRequest(request, h) {
       return res
     },
     cookie(name, value, options = {}) {
-      // Map Express cookie options to Hapi state options
-      // The actual cookie is set on the Hapi response in json()/send()
       res._cookieName    = name
       res._cookieValue   = value
       res._cookieOptions = options
@@ -50,11 +60,15 @@ function adaptRequest(request, h) {
       return res
     },
     json(body) {
+      if (_settled) return   // guard against double-resolve
+      _settled = true
+
       let response = h.response(body).code(_status)
       Object.entries(_headers).forEach(([k, v]) => { response = response.header(k, v) })
+
       if (res._cookieName) {
         response = response.state(res._cookieName, res._cookieValue, {
-          ttl:        res._cookieOptions.maxAge ? res._cookieOptions.maxAge : null,
+          ttl:        res._cookieOptions.maxAge  || null,
           isSecure:   res._cookieOptions.secure   ?? false,
           isHttpOnly: res._cookieOptions.httpOnly ?? true,
           isSameSite: res._cookieOptions.sameSite ?? 'Lax',
@@ -65,6 +79,8 @@ function adaptRequest(request, h) {
       if (res._clearCookie) {
         response = response.unstate(res._clearCookie)
       }
+
+      _resolve(response)
       return response
     },
     send(body) {
@@ -72,7 +88,24 @@ function adaptRequest(request, h) {
     },
   }
 
-  return { req, res }
+  // ── next — called by controllers in catch blocks: next(err) ───────────────
+  // Converts the Express error into a Boom error and rejects the promise
+  // so Hapi's onPreResponse extension formats it correctly.
+  function next(err) {
+    if (_settled) return   // guard against double-resolve
+    _settled = true
+
+    if (err) {
+      const status  = err.status || err.statusCode || 500
+      const boomErr = Boom.boomify(err instanceof Error ? err : new Error(String(err)), { statusCode: status })
+      _reject(boomErr)
+    } else {
+      // next() called without error — nothing to send, resolve with empty 200
+      _resolve(h.response().code(200))
+    }
+  }
+
+  return { req, res, next, responsePromise }
 }
 
 module.exports = adaptRequest

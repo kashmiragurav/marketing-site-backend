@@ -8,9 +8,10 @@ module.exports = [
   {
     method: 'GET', path: '/api/dashboard/stats', options: { auth: false },
     handler: (request, h) => {
-      const { req, res } = adapt(request, h)
+      const { req, res, next, responsePromise } = adapt(request, h)
       req.user = authenticate(request)
-      return dashboardController.getDashboardStats(req, res)
+      dashboardController.getDashboardStats(req, res, next)
+      return responsePromise
     },
   },
 ]

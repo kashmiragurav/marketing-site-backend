@@ -8,16 +8,18 @@ module.exports = [
   {
     method: 'GET', path: '/api/reviews/product/{productId}', options: { auth: false },
     handler: (request, h) => {
-      const { req, res } = adapt(request, h)
-      return reviewController.getProductReviews(req, res)
+      const { req, res, next, responsePromise } = adapt(request, h)
+      reviewController.getProductReviews(req, res, next)
+      return responsePromise
     },
   },
   {
     method: 'DELETE', path: '/api/reviews/{id}', options: { auth: false },
     handler: (request, h) => {
-      const { req, res } = adapt(request, h)
+      const { req, res, next, responsePromise } = adapt(request, h)
       req.user = authenticate(request)
-      return reviewController.deleteReview(req, res)
+      reviewController.deleteReview(req, res, next)
+      return responsePromise
     },
   },
 ]
