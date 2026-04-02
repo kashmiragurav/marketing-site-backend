@@ -1,12 +1,10 @@
-// server.js  — Hapi.js entry point (replaces index.js)
 'use strict'
 
 require('dotenv').config()
 
-const Hapi    = require('@hapi/hapi')
+const Hapi      = require('@hapi/hapi')
 const connectDB = require('./db')
 
-// Route registrations
 const productRoutes   = require('./routes/ProductRoutes')
 const authRoutes      = require('./routes/authRoutes')
 const cartRoutes      = require('./routes/cartRoutes')
@@ -15,77 +13,68 @@ const dashboardRoutes = require('./routes/DashboardRoutes')
 const reportsRoutes   = require('./routes/ReportsRoutes')
 
 const init = async () => {
-  // ── Connect DB first ────────────────────────────────────────────────────
   await connectDB()
 
   const server = Hapi.server({
-    port:  process.env.PORT || 5000,
+    port:  process.env.PORT || 8000,
     host:  '0.0.0.0',
     routes: {
       cors: {
-        // Hapi built-in CORS — replaces the cors() Express middleware
         origin:      [process.env.CLIENT_URL || 'http://localhost:3000'],
-        credentials: true,   // allow cookies
+        credentials: true,
         headers:     ['Accept', 'Content-Type', 'Authorization'],
+        exposedHeaders: ['set-cookie'],
       },
-      // Hapi parses JSON bodies automatically — replaces express.json()
-      payload: {
-        parse:  true,
-        output: 'data',
-      },
+      payload: { parse: true, output: 'data' },
     },
   })
 
-  // ── Cookie support — replaces cookie-parser ─────────────────────────────
-  // Hapi reads cookies natively via request.state; no plugin needed.
-  // Register the cookie name so Hapi knows how to parse it.
+  // ── Cookie state ─────────────────────────────────────────────────────────
   server.state('token', {
-    ttl:      null,
-    isSecure: false,          // set true in production (HTTPS)
+    ttl:        null,
+    isSecure:   false,
     isHttpOnly: true,
     isSameSite: 'Lax',
-    path:     '/',
-    encoding: 'none',         // JWT is already a string — no extra encoding
+    path:       '/',
+    encoding:   'none',
   })
 
-  // ── Global error extension — replaces errorHandler middleware ───────────
+  // ── Global error handler — formats all Boom + unexpected errors ───────────
   server.ext('onPreResponse', (request, h) => {
-    const response = request.response
-    if (response.isBoom) {
-      // Boom errors (thrown by routes/plugins) — format matches Express errorHandler
-      const err    = response
-      const status = err.output.statusCode
-      return h.response({ message: err.message }).code(status)
-    }
-    return h.continue
+    const { response } = request
+    if (!response.isBoom) return h.continue
+
+    const status  = response.output.statusCode
+    const message = response.message || 'Internal Server Error'
+    console.error(`[${status}] ${request.method.toUpperCase()} ${request.path} — ${message}`)
+    return h.response({ message }).code(status)
   })
 
-  // ── Register all route groups ────────────────────────────────────────────
-  server.route(productRoutes)
-  server.route(authRoutes)
-  server.route(cartRoutes)
-  server.route(reviewRoutes)
-  server.route(dashboardRoutes)
-  server.route(reportsRoutes)
-
-  // ── Protected example route ──────────────────────────────────────────────
-  server.route({
-    method:  'GET',
-    path:    '/api/protected',
-    options: { auth: false },   // auth handled manually inside handler
-    handler: async (request, h) => {
-      const { authenticate } = require('./middleware/authMiddleware')
-      const user = authenticate(request)   // throws Boom.unauthorized if invalid
-      return { message: `Hello ${user.email}, you accessed a protected route!` }
+  // ── Routes ────────────────────────────────────────────────────────────────
+  server.route([
+    ...productRoutes,
+    ...authRoutes,
+    ...cartRoutes,
+    ...reviewRoutes,
+    ...dashboardRoutes,
+    ...reportsRoutes,
+    // Protected example
+    {
+      method: 'GET', path: '/api/protected', options: { auth: false },
+      handler: (request, h) => {
+        const { authenticate } = require('./middleware/authMiddleware')
+        const user = authenticate(request)
+        return h.response({ message: `Hello ${user.email}, you accessed a protected route!` }).code(200)
+      },
     },
-  })
+  ])
 
   await server.start()
-  console.log(`Server running on ${server.info.uri}`)
+  console.log(`✅ Hapi server running on ${server.info.uri}`)
 }
 
 process.on('unhandledRejection', (err) => {
-  console.error(err)
+  console.error('Unhandled rejection:', err)
   process.exit(1)
 })
 

@@ -1,17 +1,11 @@
 'use strict'
 
-const dashboardController = require('../controllers/DashboardController')
-const { authenticate }    = require('../middleware/authMiddleware')
-const adapt               = require('../utils/adaptRequest')
+const dashboard        = require('../controllers/DashboardController')
+const { authenticate } = require('../middleware/authMiddleware')
 
 module.exports = [
   {
     method: 'GET', path: '/api/dashboard/stats', options: { auth: false },
-    handler: (request, h) => {
-      const { req, res, next, responsePromise } = adapt(request, h)
-      req.user = authenticate(request)
-      dashboardController.getDashboardStats(req, res, next)
-      return responsePromise
-    },
+    handler: (request, h) => { request.user = authenticate(request); return dashboard.getDashboardStats(request, h) },
   },
 ]

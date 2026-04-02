@@ -1,9 +1,8 @@
 'use strict'
 
-const reportsController = require('../controllers/ReportsController')
-const { authenticate }  = require('../middleware/authMiddleware')
-const requireRole       = require('../middleware/roleMiddleware')
-const adapt             = require('../utils/adaptRequest')
+const reports          = require('../controllers/ReportsController')
+const { authenticate } = require('../middleware/authMiddleware')
+const requireRole      = require('../middleware/roleMiddleware')
 
 module.exports = [
   {
@@ -11,10 +10,8 @@ module.exports = [
     handler: (request, h) => {
       const user = authenticate(request)
       requireRole('admin', 'super_admin')(user)
-      const { req, res, next, responsePromise } = adapt(request, h)
-      req.user = user
-      reportsController.getReportSummary(req, res, next)
-      return responsePromise
+      request.user = user
+      return reports.getReportSummary(request, h)
     },
   },
 ]

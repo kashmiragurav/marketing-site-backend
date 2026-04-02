@@ -1,25 +1,9 @@
 'use strict'
 
-const reviewController = require('../controllers/ReviewController')
+const review           = require('../controllers/ReviewController')
 const { authenticate } = require('../middleware/authMiddleware')
-const adapt            = require('../utils/adaptRequest')
 
 module.exports = [
-  {
-    method: 'GET', path: '/api/reviews/product/{productId}', options: { auth: false },
-    handler: (request, h) => {
-      const { req, res, next, responsePromise } = adapt(request, h)
-      reviewController.getProductReviews(req, res, next)
-      return responsePromise
-    },
-  },
-  {
-    method: 'DELETE', path: '/api/reviews/{id}', options: { auth: false },
-    handler: (request, h) => {
-      const { req, res, next, responsePromise } = adapt(request, h)
-      req.user = authenticate(request)
-      reviewController.deleteReview(req, res, next)
-      return responsePromise
-    },
-  },
+  { method: 'GET',    path: '/api/reviews/product/{productId}', options: { auth: false }, handler: review.getProductReviews },
+  { method: 'DELETE', path: '/api/reviews/{id}',                options: { auth: false }, handler: (request, h) => { request.user = authenticate(request); return review.deleteReview(request, h) } },
 ]
